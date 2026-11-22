@@ -1,7 +1,14 @@
 import fs from 'fs';
 import path from 'path';
-import { DatabaseSchema, Game, Deal, PriceHistoryRecord, User, WishlistItem, PriceAlert, NotificationItem, SyncLog, GameWithDeal, Platform } from './types';
+import { DatabaseSchema, Game, Deal, PriceHistoryRecord, User, WishlistItem, PriceAlert, NotificationItem, SyncLog, DailyReport, GameWithDeal, Platform } from './types';
 import { validateAndCalculateDeal, RawDealInput } from '../engine/validation';
+import { 
+  mirrorGameToSupabase, 
+  mirrorDealToSupabase, 
+  mirrorPriceHistoryToSupabase, 
+  mirrorSyncLogToSupabase,
+  mirrorDailyReportToSupabase 
+} from './supabase';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -32,6 +39,7 @@ function getInitialSchema(): DatabaseSchema {
     price_alerts: [],
     notifications: [],
     sync_logs: [],
+    daily_reports: [],
   };
 }
 
@@ -66,6 +74,7 @@ export function loadDatabase(): DatabaseSchema {
     memoryDb.price_alerts = memoryDb.price_alerts || [];
     memoryDb.notifications = memoryDb.notifications || [];
     memoryDb.sync_logs = memoryDb.sync_logs || [];
+    memoryDb.daily_reports = memoryDb.daily_reports || [];
     return memoryDb;
   } catch (err) {
     console.error('Error reading db.json, reinitializing schema:', err);
@@ -212,11 +221,6 @@ export const db = {
     const now = new Date().getTime();
 
     for (const deal of db.deals) {
-      // Filter region if specified
-      if (region && deal.region !== region) {
-        // If exact region not matched, continue unless it's only currency
-      }
-
       const game = db.games.find(g => g.id === deal.game_id);
       if (!game) continue;
 
@@ -229,7 +233,7 @@ export const db = {
       if (status) {
         if (deal.status !== status) continue;
       } else {
-        // By default, exclude EXPIRED and UNAVAILABLE unless requested
+        // By default, exclude EXPIRED and UNAVAILABLE unless explicitly requested
         if (deal.status === 'EXPIRED' || deal.status === 'UNAVAILABLE') {
           continue;
         }
@@ -349,17 +353,18 @@ export const db = {
     gameData: Omit<Game, 'created_at' | 'updated_at'>,
     dealInput: RawDealInput,
     source: Deal['source']
-  ): { game: Game; deal: Deal | null; error?: string } {
+  ): { game: Game; deal: Deal | null; isNew: boolean; priceChanged: boolean; error?: string } {
     const db = loadDatabase();
     const now = new Date().toISOString();
 
     // 1. Validate deal according to Phase 5 accuracy engine
     const validated = validateAndCalculateDeal(dealInput);
     if (!validated.isValid) {
-      return { game: gameData as Game, deal: null, error: validated.error };
+      return { game: gameData as Game, deal: null, isNew: false, priceChanged: false, error: validated.error };
     }
 
     // 2. Upsert Game
+    let isNewGame = false;
     let game = db.games.find(g => g.id === gameData.id || (g.platform === gameData.platform && g.external_game_id === gameData.external_game_id));
     if (game) {
       game.title = gameData.title || game.title;
@@ -374,6 +379,7 @@ export const db = {
       game.release_date = gameData.release_date || game.release_date;
       game.updated_at = now;
     } else {
+      isNewGame = true;
       game = {
         ...gameData,
         created_at: now,
@@ -381,12 +387,18 @@ export const db = {
       };
       db.games.push(game);
     }
+    mirrorGameToSupabase(game);
 
     // 3. Upsert Deal
     let deal = db.deals.find(d => d.game_id === game!.id && d.region === (dealInput.currency === 'INR' ? 'IN' : 'US'));
     const isNewPrice = !deal || deal.current_price !== validated.currentPrice || deal.discount_percentage !== validated.discountPercentage;
+    const priceChanged = !!deal && deal.current_price !== validated.currentPrice;
 
     if (deal) {
+      if (priceChanged) {
+        deal.previous_price = deal.current_price;
+        deal.last_price_change_at = now;
+      }
       deal.original_price = validated.originalPrice;
       deal.current_price = validated.currentPrice;
       deal.discount_percentage = validated.discountPercentage;
@@ -417,10 +429,11 @@ export const db = {
       };
       db.deals.push(deal);
     }
+    mirrorDealToSupabase(deal);
 
     // 4. Record Price History Observation if price changed or first seen
     if (isNewPrice) {
-      db.price_history.push({
+      const historyRec: PriceHistoryRecord = {
         id: `ph_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         game_id: game.id,
         region: deal.region,
@@ -429,7 +442,9 @@ export const db = {
         discount_percentage: deal.discount_percentage,
         observed_at: now,
         source: source,
-      });
+      };
+      db.price_history.push(historyRec);
+      mirrorPriceHistoryToSupabase(historyRec);
 
       // 5. Trigger Price Alerts (Phase 9)
       const matchingAlerts = db.price_alerts.filter(
@@ -451,7 +466,101 @@ export const db = {
     }
 
     saveDatabase();
-    return { game, deal };
+    return { game, deal, isNew: isNewGame, priceChanged };
+  },
+
+  // Expire Deals
+  expireOldDeals(): { expiredCount: number } {
+    const db = loadDatabase();
+    const now = Date.now();
+    let expiredCount = 0;
+
+    for (const deal of db.deals) {
+      if (deal.status !== 'EXPIRED' && deal.promotion_end) {
+        const endTime = new Date(deal.promotion_end).getTime();
+        if (!isNaN(endTime) && endTime < now) {
+          deal.status = 'EXPIRED';
+          deal.updated_at = new Date().toISOString();
+          expiredCount++;
+          mirrorDealToSupabase(deal);
+        }
+      }
+    }
+
+    if (expiredCount > 0) {
+      saveDatabase();
+    }
+    return { expiredCount };
+  },
+
+  // Perform Data Audit
+  performDataAudit(): {
+    totalChecked: number;
+    mathErrorsFound: number;
+    expiredDetected: number;
+    validPercentage: number;
+    timestamp: string;
+  } {
+    const db = loadDatabase();
+    let mathErrorsFound = 0;
+    let expiredDetected = 0;
+    const now = Date.now();
+
+    for (const deal of db.deals) {
+      // Check math
+      if (deal.original_price > 0) {
+        const expectedDiscount = Math.min(100, Math.max(0, Math.round(((deal.original_price - deal.current_price) / deal.original_price) * 100)));
+        if (Math.abs(expectedDiscount - deal.discount_percentage) > 2) {
+          mathErrorsFound++;
+          deal.discount_percentage = expectedDiscount;
+        }
+      }
+
+      // Check expired
+      if (deal.promotion_end && deal.status !== 'EXPIRED') {
+        const endTime = new Date(deal.promotion_end).getTime();
+        if (endTime < now) {
+          deal.status = 'EXPIRED';
+          expiredDetected++;
+        }
+      }
+    }
+
+    saveDatabase();
+
+    const total = db.deals.length;
+    const validPercentage = total > 0 ? Math.round(((total - mathErrorsFound) / total) * 100) : 100;
+
+    return {
+      totalChecked: total,
+      mathErrorsFound,
+      expiredDetected,
+      validPercentage,
+      timestamp: new Date().toISOString(),
+    };
+  },
+
+  // Daily Reports
+  getDailyReports(limit: number = 7): DailyReport[] {
+    const db = loadDatabase();
+    return (db.daily_reports || [])
+      .sort((a, b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())
+      .slice(0, limit);
+  },
+
+  saveDailyReport(report: DailyReport): DailyReport {
+    const db = loadDatabase();
+    db.daily_reports = db.daily_reports || [];
+    // Replace if exists for today or push
+    const idx = db.daily_reports.findIndex(r => r.date === report.date);
+    if (idx >= 0) {
+      db.daily_reports[idx] = report;
+    } else {
+      db.daily_reports.unshift(report);
+    }
+    saveDatabase();
+    mirrorDailyReportToSupabase(report);
+    return report;
   },
 
   // Wishlist
@@ -585,6 +694,7 @@ export const db = {
     };
     db.sync_logs.unshift(log);
     saveDatabase();
+    mirrorSyncLogToSupabase(log);
     return log;
   },
 
@@ -598,6 +708,7 @@ export const db = {
       log.errors = errors || null;
       log.completed_at = new Date().toISOString();
       saveDatabase();
+      mirrorSyncLogToSupabase(log);
     }
   },
 };

@@ -36,6 +36,8 @@ export interface Deal {
   currency: string; // 'INR', 'USD', etc.
   original_price: number;
   current_price: number;
+  previous_price?: number;
+  last_price_change_at?: string;
   discount_percentage: number;
   savings_amount: number;
   promotion_start: string | null;
@@ -104,6 +106,22 @@ export interface SyncLog {
   completed_at: string | null;
 }
 
+export interface DailyReport {
+  id: string;
+  date: string; // YYYY-MM-DD
+  generated_at: string;
+  total_steam_deals: number;
+  total_epic_deals: number;
+  new_discounts: number;
+  increased_discounts: number;
+  expired_deals: number;
+  free_promotions: number;
+  failed_jobs: number;
+  steam_status: 'HEALTHY' | 'DEGRADED' | 'DOWN';
+  epic_status: 'HEALTHY' | 'DEGRADED' | 'DOWN';
+  notes: string;
+}
+
 export interface DatabaseSchema {
   games: Game[];
   deals: Deal[];
@@ -113,6 +131,7 @@ export interface DatabaseSchema {
   price_alerts: PriceAlert[];
   notifications: NotificationItem[];
   sync_logs: SyncLog[];
+  daily_reports: DailyReport[];
 }
 
 export interface GameWithDeal extends Game {

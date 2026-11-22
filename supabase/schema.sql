@@ -124,3 +124,22 @@ CREATE TABLE IF NOT EXISTS sync_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sync_logs_started ON sync_logs(started_at DESC);
+
+-- 9. daily_reports table
+CREATE TABLE IF NOT EXISTS daily_reports (
+  id VARCHAR(64) PRIMARY KEY,
+  date VARCHAR(32) NOT NULL UNIQUE,
+  generated_at TIMESTAMPTZ DEFAULT NOW(),
+  total_steam_deals INT NOT NULL DEFAULT 0,
+  total_epic_deals INT NOT NULL DEFAULT 0,
+  new_discounts INT NOT NULL DEFAULT 0,
+  increased_discounts INT NOT NULL DEFAULT 0,
+  expired_deals INT NOT NULL DEFAULT 0,
+  free_promotions INT NOT NULL DEFAULT 0,
+  failed_jobs INT NOT NULL DEFAULT 0,
+  steam_status VARCHAR(16) NOT NULL DEFAULT 'HEALTHY',
+  epic_status VARCHAR(16) NOT NULL DEFAULT 'HEALTHY',
+  notes TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_daily_reports_date ON daily_reports(date DESC);

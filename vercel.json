@@ -1,0 +1,28 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/sync-steam",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-epic",
+      "schedule": "30 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-free-games",
+      "schedule": "15 * * * *"
+    },
+    {
+      "path": "/api/cron/expire-deals",
+      "schedule": "45 * * * *"
+    },
+    {
+      "path": "/api/cron/full-refresh",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/data-audit",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}

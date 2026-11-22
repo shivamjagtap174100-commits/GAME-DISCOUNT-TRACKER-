@@ -166,6 +166,92 @@ export async function runSync(options: SyncOptions = {}): Promise<SyncResult> {
 }
 
 /**
+ * Sync Free Game promotions specifically (e.g. Epic weekly giveaways & Steam free promotions)
+ */
+export async function syncFreeGames(options: { countryCode?: string } = {}): Promise<{
+  success: boolean;
+  freeGamesProcessed: number;
+  promotionsUpdated: number;
+  errors: string[];
+  durationMs: number;
+  timestamp: string;
+}> {
+  const { countryCode = 'IN' } = options;
+  const startTime = Date.now();
+  const errors: string[] = [];
+  let freeGamesProcessed = 0;
+  let promotionsUpdated = 0;
+
+  try {
+    const epicRes = await fetchEpicDeals({ countryCode: countryCode.toUpperCase(), limit: 40 });
+    if (epicRes.errors) errors.push(...epicRes.errors);
+
+    const freeItems = epicRes.games.filter(g => g.currentPrice === 0 || g.isPromotionalFree || g.isPermanentlyFree);
+
+    for (const item of freeItems) {
+      freeGamesProcessed++;
+      const upsertRes = db.upsertGameAndDeal(
+        {
+          id: `epic_${item.externalId}`,
+          platform: 'EPIC',
+          external_game_id: item.externalId,
+          title: item.title,
+          slug: item.slug,
+          description: item.description,
+          developer: item.developer,
+          publisher: item.publisher,
+          genre: item.genre,
+          artwork_url: item.artworkUrl,
+          banner_url: item.bannerUrl,
+          official_store_url: item.storeUrl,
+          release_date: item.releaseDate,
+        },
+        {
+          externalGameId: item.externalId,
+          platform: 'EPIC',
+          title: item.title,
+          originalPrice: item.originalPrice,
+          currentPrice: 0,
+          currency: item.currency,
+          promotionStart: item.promotionStart,
+          promotionEnd: item.promotionEnd,
+          storeUrl: item.storeUrl,
+          isPromotionalFree: item.isPromotionalFree,
+          isPermanentlyFree: item.isPermanentlyFree,
+        },
+        item.source
+      );
+
+      if (upsertRes.deal) {
+        promotionsUpdated++;
+      } else if (upsertRes.error) {
+        errors.push(`Epic Free [${item.title}]: ${upsertRes.error}`);
+      }
+    }
+
+    const durationMs = Date.now() - startTime;
+    return {
+      success: freeGamesProcessed > 0,
+      freeGamesProcessed,
+      promotionsUpdated,
+      errors,
+      durationMs,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (err: any) {
+    errors.push(`Free games sync failed: ${err.message || String(err)}`);
+    return {
+      success: false,
+      freeGamesProcessed,
+      promotionsUpdated,
+      errors,
+      durationMs: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+
+/**
  * Auto-seed or verify sync has run at least once
  */
 export async function ensureInitialData(): Promise<void> {
