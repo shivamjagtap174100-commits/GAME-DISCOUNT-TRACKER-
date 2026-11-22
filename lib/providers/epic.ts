@@ -6,6 +6,50 @@ export interface EpicFetchOptions {
   limit?: number;
 }
 
+export function formatEpicStoreUrl(el: any): string {
+  const isHexHash = (s: string) => /^[a-f0-9]{24,36}$/i.test(s || '');
+
+  let slug: string | null = null;
+
+  // 1. Try offerMappings pageSlug (e.g. firestone-online-idle-rpg-bfd04b)
+  if (el.offerMappings && Array.isArray(el.offerMappings)) {
+    for (const m of el.offerMappings) {
+      if (m.pageSlug && !isHexHash(m.pageSlug)) {
+        slug = m.pageSlug;
+        break;
+      }
+    }
+  }
+
+  // 2. Try catalogNs mappings pageSlug
+  if (!slug && el.catalogNs?.mappings && Array.isArray(el.catalogNs.mappings)) {
+    for (const m of el.catalogNs.mappings) {
+      if (m.pageSlug && !isHexHash(m.pageSlug)) {
+        slug = m.pageSlug;
+        break;
+      }
+    }
+  }
+
+  // 3. Try productSlug (e.g. ghostrunner-2)
+  if (!slug && el.productSlug && !isHexHash(el.productSlug)) {
+    slug = el.productSlug;
+  }
+
+  // 4. Try urlSlug
+  if (!slug && el.urlSlug && !isHexHash(el.urlSlug)) {
+    slug = el.urlSlug;
+  }
+
+  if (slug) {
+    const cleanSlug = slug.replace(/^\/+|\/+$/g, '').replace(/\/home$/i, '');
+    return `https://store.epicgames.com/p/${cleanSlug}`;
+  }
+
+  // 5. Guaranteed fallback: Search on Epic Games Store (never 404s)
+  return `https://store.epicgames.com/browse?q=${encodeURIComponent(el.title)}`;
+}
+
 export async function fetchEpicDeals(options: EpicFetchOptions = {}): Promise<ProviderFetchResult> {
   const { countryCode = 'IN', limit = 40 } = options;
   const errors: string[] = [];
@@ -62,9 +106,8 @@ export async function fetchEpicDeals(options: EpicFetchOptions = {}): Promise<Pr
           promotionEnd = promo.endDate || null;
         }
 
-        // Store URL
-        const pageSlug = el.productSlug || el.urlSlug || el.offerMappings?.[0]?.pageSlug || externalId;
-        const storeUrl = `https://store.epicgames.com/p/${pageSlug.replace(/^\/+/, '')}`;
+        // Store URL using robust resolver
+        const storeUrl = formatEpicStoreUrl(el);
 
         // Artwork
         const keyImages = el.keyImages || [];
@@ -160,8 +203,8 @@ export async function fetchEpicDeals(options: EpicFetchOptions = {}): Promise<Pr
         const originalPrice = (priceObj.originalPrice || 0) / 100;
         const currentPrice = (priceObj.discountPrice || 0) / 100;
 
-        const pageSlug = el.productSlug || el.urlSlug || el.offerMappings?.[0]?.pageSlug || externalId;
-        const storeUrl = `https://store.epicgames.com/p/${pageSlug.replace(/^\/+/, '')}`;
+        // Store URL using robust resolver
+        const storeUrl = formatEpicStoreUrl(el);
 
         const keyImages = el.keyImages || [];
         const wideImg = keyImages.find((img: any) => img.type === 'OfferImageWide' || img.type === 'featuredMedia');
