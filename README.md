@@ -3,6 +3,8 @@
 
 > **Architect & Lead Developer**: **Shivam Jagtap** ([@shivamjagtap174100-commits](https://github.com/shivamjagtap174100-commits))
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fshivamjagtap174100-commits%2FGAME-DISCOUNT-TRACKER-)
+
 Game Discount Tracker is a production-grade, commercial web application designed to continuously monitor, verify, and discover PC gaming deals, price drops, steep historical discounts, and free promotions from **Steam** and the **Epic Games Store**.
 
 Built with an editorial aesthetic, dark UI philosophy, real-time store APIs, a data accuracy engine, price history tracking, and regional currency support defaulting to India (INR ₹).
