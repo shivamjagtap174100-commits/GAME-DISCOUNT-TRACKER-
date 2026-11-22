@@ -112,8 +112,12 @@ export default function Footer({ lastSyncTime }: FooterProps) {
 
         {/* Bottom bar */}
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-text-muted">
-          <div>
-            © {new Date().getFullYear()} Game Discount Tracker. Never Miss a Game Deal.
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+            <span>© {new Date().getFullYear()} Game Discount Tracker. Never Miss a Game Deal.</span>
+            <span className="hidden sm:inline text-text-muted">•</span>
+            <span>
+              Engineered with precision by <strong className="text-text-primary font-semibold hover:text-accent-amber transition-colors">Shivam Jagtap</strong>
+            </span>
           </div>
           <div className="flex items-center gap-6">
             <Link href="/about" className="hover:text-text-primary transition-colors">

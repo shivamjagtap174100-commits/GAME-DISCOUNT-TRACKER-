@@ -67,9 +67,15 @@ export default function Navbar() {
             <span className="font-heading font-bold text-base tracking-tight text-text-primary leading-none">
               GAME DISCOUNT <span className="text-accent-amber">TRACKER</span>
             </span>
-            <span className="text-[10px] tracking-wider text-text-muted uppercase font-medium mt-0.5">
-              Never Miss A Deal
-            </span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-[10px] tracking-wider text-text-muted uppercase font-medium">
+                Never Miss A Deal
+              </span>
+              <span className="text-[9px] text-[#2F363E]">•</span>
+              <span className="text-[10px] font-semibold text-accent-amber">
+                by Shivam Jagtap
+              </span>
+            </div>
           </div>
         </Link>
 

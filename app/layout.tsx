@@ -3,11 +3,14 @@ import './globals.css';
 import { AppProvider } from '@/components/AppContext';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import Watermark from '@/components/Watermark';
 
 export const metadata: Metadata = {
   title: 'Game Discount Tracker — Never Miss a Game Deal',
   description: 'Track real-time game prices, steep discounts, historical lows, and free promotions across Steam and Epic Games Store.',
   keywords: ['game deals', 'steam sales', 'epic games discount', 'free pc games', 'game price tracker', 'india gaming deals'],
+  authors: [{ name: 'Shivam Jagtap', url: 'https://github.com/shivamjagtap174100-commits' }],
+  creator: 'Shivam Jagtap',
   openGraph: {
     title: 'Game Discount Tracker — Never Miss a Game Deal',
     description: 'Track real-time game prices, steep discounts, historical lows, and free promotions across Steam and Epic Games Store.',
@@ -28,6 +31,7 @@ export default function RootLayout({
           <Navbar />
           <main className="flex-1">{children}</main>
           <Footer />
+          <Watermark />
         </AppProvider>
       </body>
     </html>

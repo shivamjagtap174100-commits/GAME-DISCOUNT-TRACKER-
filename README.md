@@ -1,6 +1,8 @@
 # GAME DISCOUNT TRACKER
 **Tagline: Never Miss a Game Deal.**
 
+> **Architect & Lead Developer**: **Shivam Jagtap** ([@shivamjagtap174100-commits](https://github.com/shivamjagtap174100-commits))
+
 Game Discount Tracker is a production-grade, commercial web application designed to continuously monitor, verify, and discover PC gaming deals, price drops, steep historical discounts, and free promotions from **Steam** and the **Epic Games Store**.
 
 Built with an editorial aesthetic, dark UI philosophy, real-time store APIs, a data accuracy engine, price history tracking, and regional currency support defaulting to India (INR ₹).
